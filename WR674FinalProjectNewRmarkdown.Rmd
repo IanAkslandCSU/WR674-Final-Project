@@ -1,0 +1,160 @@
+---
+title: "FinalProjRmarkDown"
+author: "Ian Aksland"
+date: "12/7/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(darksky)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Dark Sky Data Collection
+
+```{r}
+darksky_api_key() # Set Secret Key
+```
+
+```{r}
+latitude <- 40.582753
+longitude <- -105.112879
+```
+
+
+```{r}
+
+now <- get_current_forecast(latitude, longitude, units = "us", language = "en",
+exclude = 'currently,minutely,daily', extend = NULL, add_json = FALSE, add_headers = TRUE) 
+now_hourly <-  now$hourly %>%
+  select(-precipType)
+print(now$hourly)
+```
+
+```{r}
+timestamp <- as.Date("2019-07-31")  # starting day you want but you must do the following day for it to work I want the 30th so I did 31
+timestampWithTime <- paste(timestamp,"T00:00:00",sep="")
+forecast <- get_forecast_for(latitude, longitude, timestamp, units = "us",
+language = "en", exclude = 'currently,minutely,daily', add_json = FALSE,
+add_headers = FALSE)
+if(ncol(forecast$hourly)==18){
+dataWeatherForeCastHour <- forecast$hourly %>%
+  select(-precipType)
+}else {
+  dataWeatherForeCastHour <- forecast$hourly
+}
+combinedWeatherData <- dataWeatherForeCastHour
+```
+
+
+```{r}
+dates <- seq(from = as.Date("2019-07-31"), to = as.Date("2019-08-27"), by=1)
+for (i in as.list(dates))
+{
+  print(i)
+timestampNew <- paste(i,"T00:00:00",sep="")
+forecastNew <- get_forecast_for(latitude, longitude, timestampNew, units = "us",
+language = "en", exclude = 'currently,minutely,daily', add_json = FALSE,
+add_headers = FALSE)
+if(ncol(forecastNew$hourly)==18){
+dataWeatherForeCastHourNew <- forecastNew$hourly %>%
+  select(-precipType)
+}
+else{
+  dataWeatherForeCastHourNew <- forecastNew$hourly
+}
+combinedWeatherData <- rbind(combinedWeatherData,dataWeatherForeCastHourNew)
+}
+
+```
+
+## Sensor Data
+
+```{r}
+dfRobot <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_df-robot-clone.csv")
+
+soilWatch10 <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_soilwatch-10.csv")
+  
+EC5 <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_ec-5.csv")
+
+tinovi <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_tinovi-vwc.csv")
+  
+soilTemp <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_soil-temp-c.csv")
+```
+
+## Make Dates Match Weather Dates
+
+### DF Robot Sensor Combine With weather Data
+```{r}
+for(r in dfRobot){
+dfRobot$time <- gsub(":.{2}$",":00",dfRobot$Human.readable.date) %>%
+  as.POSIXct()
+}
+
+
+df_weather_combine <- left_join(combinedWeatherData,dfRobot, by = "time") 
+df_weather_remv_na <- na.omit(df_weather_combine) %>%
+  select(-Timestamp,-context_e00fce6872359b9131374b7c_dfrobot.sm3.calibrated,-context_e00fce6872359b9131374b7c_dfrobot.sm6.calibrated,-icon, -ozone) %>%
+  rename(dfRobotSensor_3 = e00fce6872359b9131374b7c_dfrobot.sm3.calibrated, dfRobotSensor_6 = e00fce6872359b9131374b7c_dfrobot.sm6.calibrated,rawTime = Human.readable.date)
+```
+
+### Soil Watch-10 Sesnor Combine with DFrobot and Weather Data
+
+```{r}
+for(r in soilWatch10){
+soilWatch10$time <- gsub(":.{2}$",":00",soilWatch10$Human.readable.date) %>%
+  as.POSIXct()
+}
+
+sw_df_weather_remv_na <- left_join(df_weather_remv_na,soilWatch10, by = "time") %>%
+  na.omit(sw_df_weather_remv_na) %>%
+  select(-Timestamp,-context_e00fce6872359b9131374b7c_sw.10.sensor.2.calibrated,-context_e00fce6872359b9131374b7c_sw.10.sm5.calibrated,-Human.readable.date) %>%
+  rename(soilWatchSensor_2 = e00fce6872359b9131374b7c_sw.10.sensor.2.calibrated, soilWatchSensor_5 = e00fce6872359b9131374b7c_sw.10.sm5.calibrated)
+```
+
+### EC-5 Sensor Combine with DFrobot, SoilWatch10, and Weather Data
+
+```{r}
+for(r in EC5){
+EC5$time <- gsub(":.{2}$",":00",EC5$Human.readable.date) %>%
+  as.POSIXct()
+}
+
+EC_sw_df_weather_remv_na <- left_join(sw_df_weather_remv_na,EC5, by = "time") %>%
+  na.omit(sw_df_weather_remv_na) %>%
+  select(-Timestamp,-context_e00fce6872359b9131374b7c_ec.5.calibrated,-context_e00fce6872359b9131374b7c_ec.5.sm4.calibrated,-Human.readable.date) %>%
+  rename(EC5_1 = e00fce6872359b9131374b7c_ec.5.calibrated, EC5_4 = e00fce6872359b9131374b7c_ec.5.sm4.calibrated)
+```
+
+### Tinovi Sensor Combine with DFrobot, SoilWatch10, EC5, and Weather Data
+
+```{r}
+for(r in tinovi){
+tinovi$time <- gsub(":.{2}$",":00",tinovi$Human.readable.date) %>%
+  as.POSIXct()
+}
+
+tin_EC_sw_df_weather_remv_na <- left_join(EC_sw_df_weather_remv_na,tinovi, by = "time") %>%
+  na.omit(sw_df_weather_remv_na) %>%
+  select(-Timestamp,-context_e00fce6872359b9131374b7c_tinovi.calibrated,-Human.readable.date) %>%
+  rename(tinovi_7 = e00fce6872359b9131374b7c_tinovi.calibrated)
+```
+
+### Soil Temp Sensor Combine with DFrobot, SoilWatch10, EC5, and Weather Data
+
+```{r}
+for(r in tinovi){
+soilTemp$time <- gsub(":.{2}$",":00",soilTemp$Human.readable.date) %>%
+  as.POSIXct()
+}
+
+st_tin_EC_sw_df_weather_remv_na <- left_join(tin_EC_sw_df_weather_remv_na,soilTemp, by = "time") %>%
+  na.omit(st_tin_EC_sw_df_weather_remv_na) %>%
+  select(-Timestamp,-context_e00fce6872359b9131374b7c_soiltemp,-Human.readable.date) %>%
+  rename(soilTempC = e00fce6872359b9131374b7c_soiltemp)%>%
+  distinct(time,.keep_all = TRUE)
+```
+
+
