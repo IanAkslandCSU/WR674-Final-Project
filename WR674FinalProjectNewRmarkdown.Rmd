@@ -14,18 +14,27 @@ library(knitr)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+******  
 
 # Introduction
 
-Explain and bring in example system
+I work on instrumentation for enviornmental measurment, and how we can use this data in a meaningful way.
 
-API request from Dark Sky
+The system we used this last summer uses our openIoTsensor boards, and a variety of soil moisture sensors.
+
+They were installed at City Park Nine Golf Course fairway-7. We installed all 7 moisture sensors within close proximity.
+
+We used 2 dollars for DFrobot, 22 dollars for SoilWatch10, 25 dollars for Tinovi, and 135 dollars for EC5 sensors.
+
+******  
 
 # Data Processing
 
 ## Dark Sky Data Collection
 
 **You must type in your Dark Sky Secret Key in console before proceeding**
+
+API request from Dark Sky
 
 ```{r}
 darksky_api_key() # Set Secret Key
@@ -62,6 +71,8 @@ kable(now_only) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive",position = "float_left",font_size = 7,full_width = T))
 ```
 
+### Get hourly weather data for a specific day
+
 Takes hourly weather data from 7/30/2019. If I messed with the time stamp I think I could get it to work right, but a quicker fix was just putting in the 31st to get it to work.
 
 ```{r}
@@ -78,6 +89,8 @@ dataWeatherForeCastHour <- forecast$hourly %>%
 }
 combinedWeatherData <- dataWeatherForeCastHour
 ```
+
+### Get hourly weather data for a range of days in one table
 
 Now I'll get the real weather data I need from 7/30/2019 to 8/27/2019
 
@@ -128,13 +141,13 @@ soilTemp <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final
 
 ### DF Robot Sensor Combine With weather Data
 
-**ISSUE:** I had to g-sub the seconds column to be zeros to match weather data times, and change data formatt
+**ISSUE:** I had to g-sub the seconds column to be zeros to match weather data times, and change the date format.
 
 It was a few seconds off from the hour becasue the cellular antenna/connection takes some time to connect and send data to the cloud.
 
 It won't take more than a minute b/c the system was coded to only try for 30 seconds, so I only replace the seconds with "00".
 
-I also did some column removal and rename unfreindly column names, and got rid of N/A values generated from missing sensors values casued by a weak cellular conection.
+I also did some column removal, renamed unfreindly column names, and got rid of N/A values generated from missing sensors values casued by a weak cellular conection.
 
 An improvment would be to not hardcode names; instead grab the name based on column number so it works for any name.
 
@@ -220,24 +233,9 @@ st_tin_EC_sw_df_weather_remv_na_dups <- left_join(tin_EC_sw_df_weather_remv_na,s
 finalDataSet <- st_tin_EC_sw_df_weather_remv_na_dups
 ```
 
+******  
 
-## Plots and Visuals
-
-```{r}
-qplot(x = time,y = EC5_1,data = finalDataSet,
-                                            main = "EC sensorest VWC vs Time",
-                                           
-                                            geom = "line"
-                                            )
-
-plot = ggplot() +
-geom_line(data = finalDataSet, aes(x = time, y = EC5_1), color = "blue") +
-  geom_line(data = finalDataSet, aes(x = time, y = EC5_4), color = "blue") +
-    ylab("VWC (vol water/ vol soil)")
-
-print(plot)
-```
-
+# Plots and Visuals
 
 ### Some information on data collection strategies
 
@@ -245,8 +243,39 @@ On Aug 7th we flashed new code with a smoothing function that took 900 hundred r
 
 All sensors were installed at one inch depth all within in a foot of eachother. Location on the rough of the golf course.
 
+We also noticed that some sensors were more sensitive to temperature effecting readings(Shown in a graph below).
 
-## Future Steps Recap and Questions
+Jim, the golf course superintendent allowed us to have full control of the irrigation in the area.
+
+We had two major irrigation differences, until about Aug 19th we went from fully-saturation to fully field dry. After that we had constant irrigation events every day.
+
+```{r}
+qplot(x = time,y = EC5_1,data = finalDataSet,
+                                            main = "EC sensor VWC vs Time",
+                                            geom = "line")
+
+plot = ggplot() +
+geom_line(data = finalDataSet, aes(x = time, y = EC5_1), color = "blue") +
+  geom_line(data = finalDataSet, aes(x = time, y = EC5_4), color = "blue") +
+  geom_line(data = finalDataSet, aes(x = time, y = precipProbability*100), color = "red") +
+    ylab("VWC (vol water/ vol soil) and Precip Prob")+
+    ggtitle("Volumetric Water Content and Precip Prob vs. Time") # for the main title
+
+plot
+
+plot2 = ggplot() +
+geom_line(data = finalDataSet, aes(x = time, y = soilWatchSensor_2), color = "blue") +
+  geom_line(data = finalDataSet, aes(x = time, y = soilTempC), color = "orange")+
+  ylab("VWC(vol water/ vol soil) and Soil Temperature(c)")+
+  ggtitle("Soil Moisture and Soil Temp vs Time") # for the main title
+
+plot2
+
+```
+
+******  
+
+# Future Steps Recap and Questions
 
 AI and machine learning.
 
