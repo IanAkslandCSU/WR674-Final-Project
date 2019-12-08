@@ -8,34 +8,65 @@ output: html_document
 ```{r setup, include=FALSE}
 library(darksky)
 library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+library(knitr)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
+# Introduction
+
+Explain and bring in example system
+
+API request from Dark Sky
+
+# Data Processing
+
 ## Dark Sky Data Collection
+
+**You must type in your Dark Sky Secret Key in console before proceeding**
 
 ```{r}
 darksky_api_key() # Set Secret Key
 ```
+
+Input of Desired Lat,Long Cordinates
 
 ```{r}
 latitude <- 40.582753
 longitude <- -105.112879
 ```
 
+Get daily and predicted forcast for following week, and display today weather.
+
+### Ugly Table
 
 ```{r}
 
 now <- get_current_forecast(latitude, longitude, units = "us", language = "en",
-exclude = 'currently,minutely,daily', extend = NULL, add_json = FALSE, add_headers = TRUE) 
-now_hourly <-  now$hourly %>%
+exclude = 'hourly,currently,minutely', extend = "daily", add_json = FALSE, add_headers = TRUE) 
+now_daily <-  now$daily %>%
   select(-precipType)
-print(now$hourly)
+print(head(now$daily,1))
+
+now_only <- head(now$daily,1)
 ```
+
+### Cool Table
+
+```{r}
+
+now_only <- gather(now_only,key = "Data Type",Value)
+kable(now_only) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive",position = "float_left",font_size = 7,full_width = T))
+```
+
+Takes hourly weather data from 7/30/2019. If I messed with the time stamp I think I could get it to work right, but a quicker fix was just putting in the 31st to get it to work.
 
 ```{r}
 timestamp <- as.Date("2019-07-31")  # starting day you want but you must do the following day for it to work I want the 30th so I did 31
-timestampWithTime <- paste(timestamp,"T00:00:00",sep="")
+timestampWithTime <- paste(timestamp,"T00:00:00",sep="") # add time to the date to match darksky api
 forecast <- get_forecast_for(latitude, longitude, timestamp, units = "us",
 language = "en", exclude = 'currently,minutely,daily', add_json = FALSE,
 add_headers = FALSE)
@@ -48,6 +79,13 @@ dataWeatherForeCastHour <- forecast$hourly %>%
 combinedWeatherData <- dataWeatherForeCastHour
 ```
 
+Now I'll get the real weather data I need from 7/30/2019 to 8/27/2019
+
+**ISSUE:** When we have no rain event the precipType column goes away so I had to add an IF statment to check for that. 
+
+I also had to format the date by year-month-day to match API
+
+I rbind every new day to the previous set. I print each day to make sure, and easily get a combined weatherdata over my time range.
 
 ```{r}
 dates <- seq(from = as.Date("2019-07-31"), to = as.Date("2019-08-27"), by=1)
@@ -70,7 +108,11 @@ combinedWeatherData <- rbind(combinedWeatherData,dataWeatherForeCastHourNew)
 
 ```
 
-## Sensor Data
+## Sensor Data Collection
+
+### Bring in data from my csv files generated from my IoT platform Ubidots
+
+We had four different soil moisture sensors and soil temperature in Celsius.
 
 ```{r}
 dfRobot <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_df-robot-clone.csv")
@@ -84,9 +126,18 @@ tinovi <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-P
 soilTemp <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_soil-temp-c.csv")
 ```
 
-## Make Dates Match Weather Dates
-
 ### DF Robot Sensor Combine With weather Data
+
+**ISSUE:** I had to g-sub the seconds column to be zeros to match weather data times, and change data formatt
+
+It was a few seconds off from the hour becasue the cellular antenna/connection takes some time to connect and send data to the cloud.
+
+It won't take more than a minute b/c the system was coded to only try for 30 seconds, so I only replace the seconds with "00".
+
+I also did some column removal and rename unfreindly column names, and got rid of N/A values generated from missing sensors values casued by a weak cellular conection.
+
+An improvment would be to not hardcode names; instead grab the name based on column number so it works for any name.
+
 ```{r}
 for(r in dfRobot){
 dfRobot$time <- gsub(":.{2}$",":00",dfRobot$Human.readable.date) %>%
@@ -102,6 +153,8 @@ df_weather_remv_na <- na.omit(df_weather_combine) %>%
 
 ### Soil Watch-10 Sesnor Combine with DFrobot and Weather Data
 
+Same data adjustments and the DF robot sensor
+
 ```{r}
 for(r in soilWatch10){
 soilWatch10$time <- gsub(":.{2}$",":00",soilWatch10$Human.readable.date) %>%
@@ -115,6 +168,8 @@ sw_df_weather_remv_na <- left_join(df_weather_remv_na,soilWatch10, by = "time") 
 ```
 
 ### EC-5 Sensor Combine with DFrobot, SoilWatch10, and Weather Data
+
+Same data adjustments as the others
 
 ```{r}
 for(r in EC5){
@@ -130,6 +185,8 @@ EC_sw_df_weather_remv_na <- left_join(sw_df_weather_remv_na,EC5, by = "time") %>
 
 ### Tinovi Sensor Combine with DFrobot, SoilWatch10, EC5, and Weather Data
 
+Same data adjustments as the others
+
 ```{r}
 for(r in tinovi){
 tinovi$time <- gsub(":.{2}$",":00",tinovi$Human.readable.date) %>%
@@ -144,17 +201,55 @@ tin_EC_sw_df_weather_remv_na <- left_join(EC_sw_df_weather_remv_na,tinovi, by = 
 
 ### Soil Temp Sensor Combine with DFrobot, SoilWatch10, EC5, and Weather Data
 
+Same data adjustments as the others **AND** with a distinct(time) to eliminate any duplicate readings.
+
+We now have a final dataset we can use with hourly weather data from 7/30/2019 to 8/27/2019 with seven corresponding soil moisture readings and temperature data!
+
 ```{r}
 for(r in tinovi){
 soilTemp$time <- gsub(":.{2}$",":00",soilTemp$Human.readable.date) %>%
   as.POSIXct()
 }
 
-st_tin_EC_sw_df_weather_remv_na <- left_join(tin_EC_sw_df_weather_remv_na,soilTemp, by = "time") %>%
-  na.omit(st_tin_EC_sw_df_weather_remv_na) %>%
+st_tin_EC_sw_df_weather_remv_na_dups <- left_join(tin_EC_sw_df_weather_remv_na,soilTemp, by = "time") %>%
+  na.omit(st_tin_EC_sw_df_weather_remv_na_dups) %>%
   select(-Timestamp,-context_e00fce6872359b9131374b7c_soiltemp,-Human.readable.date) %>%
   rename(soilTempC = e00fce6872359b9131374b7c_soiltemp)%>%
   distinct(time,.keep_all = TRUE)
+
+finalDataSet <- st_tin_EC_sw_df_weather_remv_na_dups
 ```
 
 
+## Plots and Visuals
+
+```{r}
+qplot(x = time,y = EC5_1,data = finalDataSet,
+                                            main = "EC sensorest VWC vs Time",
+                                           
+                                            geom = "line"
+                                            )
+
+plot = ggplot() +
+geom_line(data = finalDataSet, aes(x = time, y = EC5_1), color = "blue") +
+  geom_line(data = finalDataSet, aes(x = time, y = EC5_4), color = "blue") +
+    ylab("VWC (vol water/ vol soil)")
+
+print(plot)
+```
+
+
+### Some information on data collection strategies
+
+On Aug 7th we flashed new code with a smoothing function that took 900 hundred readings per sensor and then took the avg of the middle 300 values.
+
+All sensors were installed at one inch depth all within in a foot of eachother. Location on the rough of the golf course.
+
+
+## Future Steps Recap and Questions
+
+AI and machine learning.
+
+IRT sensors added
+
+Auto Irrigation
