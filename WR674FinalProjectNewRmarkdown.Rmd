@@ -2,10 +2,15 @@
 title: "FinalProjRmarkDown"
 author: "Ian Aksland"
 date: "12/7/2019"
-output: html_document
+output:
+  html_document:
+    toc: true  
+    toc_depth: 2  
+    toc_float: true
 ---
 
 ```{r setup, include=FALSE}
+library(lubridate)
 library(darksky)
 library(tidyverse)
 library(ggplot2)
@@ -105,7 +110,7 @@ I also had to format the date by year-month-day to match API
 I rbind every new day to the previous set. I print each day to make sure, and easily get a combined weatherdata over my time range.
 
 ```{r}
-dates <- seq(from = as.Date("2019-07-31"), to = as.Date("2019-08-27"), by=1)
+dates <- seq(from = as.Date("2019-07-31"), to = as.Date("2019-08-2"), by=1)
 for (i in as.list(dates))
 {
   print(i)
@@ -258,7 +263,7 @@ We had two major irrigation differences, until about Aug 19th we went from fully
 ### Basic Graph
 
 ```{r}
-qplot(x = time,y = EC5_1,data = fianlDataSet_long, main = "EC sensor VWC vs Time",
+qplot(x = time,y = EC5_1,data = finalDataSet_long, main = "EC sensor VWC vs Time",
                                             geom = "line")
 
 ```
@@ -266,11 +271,10 @@ qplot(x = time,y = EC5_1,data = fianlDataSet_long, main = "EC sensor VWC vs Time
 ### Better Graphs
 
 ```{r}
-geom_line(position = 'jitter')
 plot = ggplot() +
-geom_line(data = finalDataSet_long, aes(x = time, y = EC5_1), color = "blue", size = .5, alpha=0.5) + 
-  geom_line(data = finalDataSet_long, aes(x = time, y = EC5_4), color = "blue", size = .5, alpha=0.5) + 
-  geom_line(data = finalDataSet_long, aes(x = time, y = precipProbability*100), color = "steelblue", size = .65, alpha=0.75) +
+geom_line(data = finalDataSet_long, aes(x = time, y = EC5_1), color = "blue", alpha=0.5) + 
+  geom_line(data = finalDataSet_long, aes(x = time, y = EC5_4), color = "blue",alpha=0.5) + 
+  geom_line(data = finalDataSet_long, aes(x = time, y = precipProbability*100), color = "steelblue", alpha=0.75) +
     ylab("VWC (vol water/ vol soil) and Precip Prob")+
     ggtitle("Volumetric Water Content and Precip Prob vs. Time") # for the main title
 
