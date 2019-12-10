@@ -14,7 +14,7 @@ library(knitr)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-******  
+***  
 
 # Introduction
 
@@ -26,7 +26,7 @@ They were installed at City Park Nine Golf Course fairway-7. We installed all 7 
 
 We used 2 dollars for DFrobot, 22 dollars for SoilWatch10, 25 dollars for Tinovi, and 135 dollars for EC5 sensors.
 
-******  
+***  
 
 # Data Processing
 
@@ -49,12 +49,16 @@ longitude <- -105.112879
 
 Get daily and predicted forcast for following week, and display today weather.
 
+
+```{r }
+now <- get_current_forecast(latitude, longitude, units = "us", language = "en",
+exclude = 'hourly,currently,minutely', extend = "daily", add_json = FALSE, add_headers = TRUE) 
+```
+
+
 ### Ugly Table
 
 ```{r}
-
-now <- get_current_forecast(latitude, longitude, units = "us", language = "en",
-exclude = 'hourly,currently,minutely', extend = "daily", add_json = FALSE, add_headers = TRUE) 
 now_daily <-  now$daily %>%
   select(-precipType)
 print(head(now$daily,1))
@@ -65,17 +69,16 @@ now_only <- head(now$daily,1)
 ### Cool Table
 
 ```{r}
-
 now_only <- gather(now_only,key = "Data Type",Value)
 kable(now_only) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive",position = "float_left",font_size = 7,full_width = T))
+  kable_styling(latex_options = "striped")
 ```
 
 ### Get hourly weather data for a specific day
 
 Takes hourly weather data from 7/30/2019. If I messed with the time stamp I think I could get it to work right, but a quicker fix was just putting in the 31st to get it to work.
 
-```{r}
+```{r }
 timestamp <- as.Date("2019-07-31")  # starting day you want but you must do the following day for it to work I want the 30th so I did 31
 timestampWithTime <- paste(timestamp,"T00:00:00",sep="") # add time to the date to match darksky api
 forecast <- get_forecast_for(latitude, longitude, timestamp, units = "us",
@@ -89,6 +92,7 @@ dataWeatherForeCastHour <- forecast$hourly %>%
 }
 combinedWeatherData <- dataWeatherForeCastHour
 ```
+
 
 ### Get hourly weather data for a range of days in one table
 
@@ -139,7 +143,7 @@ tinovi <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-P
 soilTemp <- read.csv("C:/Users/ianak/Documents/WR674/FinalProjectNew/WR674-Final-Project/data/widget_data_soil-temp-c.csv")
 ```
 
-### DF Robot Sensor Combine With weather Data
+### DF Robot Sensor Combine with Weather Data
 
 **ISSUE:** I had to g-sub the seconds column to be zeros to match weather data times, and change the date format.
 
@@ -164,7 +168,7 @@ df_weather_remv_na <- na.omit(df_weather_combine) %>%
   rename(dfRobotSensor_3 = e00fce6872359b9131374b7c_dfrobot.sm3.calibrated, dfRobotSensor_6 = e00fce6872359b9131374b7c_dfrobot.sm6.calibrated,rawTime = Human.readable.date)
 ```
 
-### Soil Watch-10 Sesnor Combine with DFrobot and Weather Data
+### Soil Watch-10 Sensor Combine with DFrobot and Weather Data
 
 Same data adjustments and the DF robot sensor
 
@@ -230,14 +234,14 @@ st_tin_EC_sw_df_weather_remv_na_dups <- left_join(tin_EC_sw_df_weather_remv_na,s
   rename(soilTempC = e00fce6872359b9131374b7c_soiltemp)%>%
   distinct(time,.keep_all = TRUE)
 
-finalDataSet <- st_tin_EC_sw_df_weather_remv_na_dups
+finalDataSet_long <- st_tin_EC_sw_df_weather_remv_na_dups
 ```
 
-******  
+*** 
 
 # Plots and Visuals
 
-### Some information on data collection strategies
+## Some information on data collection strategies
 
 On Aug 7th we flashed new code with a smoothing function that took 900 hundred readings per sensor and then took the avg of the middle 300 values.
 
@@ -249,31 +253,52 @@ Jim, the golf course superintendent allowed us to have full control of the irrig
 
 We had two major irrigation differences, until about Aug 19th we went from fully-saturation to fully field dry. After that we had constant irrigation events every day.
 
+## Showing Off the Data
+
+### Basic Graph
+
 ```{r}
-qplot(x = time,y = EC5_1,data = finalDataSet,
-                                            main = "EC sensor VWC vs Time",
+qplot(x = time,y = EC5_1,data = fianlDataSet_long, main = "EC sensor VWC vs Time",
                                             geom = "line")
 
+```
+
+### Better Graphs
+
+```{r}
+geom_line(position = 'jitter')
 plot = ggplot() +
-geom_line(data = finalDataSet, aes(x = time, y = EC5_1), color = "blue") +
-  geom_line(data = finalDataSet, aes(x = time, y = EC5_4), color = "blue") +
-  geom_line(data = finalDataSet, aes(x = time, y = precipProbability*100), color = "red") +
+geom_line(data = finalDataSet_long, aes(x = time, y = EC5_1), color = "blue", size = .5, alpha=0.5) + 
+  geom_line(data = finalDataSet_long, aes(x = time, y = EC5_4), color = "blue", size = .5, alpha=0.5) + 
+  geom_line(data = finalDataSet_long, aes(x = time, y = precipProbability*100), color = "steelblue", size = .65, alpha=0.75) +
     ylab("VWC (vol water/ vol soil) and Precip Prob")+
     ggtitle("Volumetric Water Content and Precip Prob vs. Time") # for the main title
 
 plot
-
-plot2 = ggplot() +
-geom_line(data = finalDataSet, aes(x = time, y = soilWatchSensor_2), color = "blue") +
-  geom_line(data = finalDataSet, aes(x = time, y = soilTempC), color = "orange")+
-  ylab("VWC(vol water/ vol soil) and Soil Temperature(c)")+
-  ggtitle("Soil Moisture and Soil Temp vs Time") # for the main title
-
-plot2
-
 ```
 
-******  
+```{r}
+plot2 = ggplot() +
+geom_line(data = finalDataSet_long, aes(x = time, y = soilWatchSensor_2), color = "blue") +
+  geom_line(data = finalDataSet_long, aes(x = time, y = soilTempC), color = "orange")+
+  ylab("VWC(vol water/ vol soil) and Soil Temperature(c)")+
+  ggtitle("Soil Moisture and Soil Temp vs Time")
+
+plot2
+```
+
+
+```{r}
+plot3 = ggplot() +
+geom_line(data = finalDataSet_long, aes(x = time, y = temperature), color = "red") +
+  geom_line(data = finalDataSet_long, aes(x = time, y = soilTempC), color = "orange")+
+  ylab("Temperature(c)")+
+  ggtitle("Air Temp and Soil Temp vs Time")
+
+plot3
+```
+
+***  
 
 # Future Steps Recap and Questions
 
